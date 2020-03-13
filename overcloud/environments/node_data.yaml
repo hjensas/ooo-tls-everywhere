@@ -1,0 +1,21 @@
+parameter_defaults:
+
+  SELinuxMode: permissive
+
+  swap_size_megabytes: 8192
+
+  # Controller
+  ControllerCount: 1
+  OvercloudControllerFlavor: control
+
+  # Compute
+  ComputeCount: 1
+  OvercloudComputeFlavor: compute
+
+  CloudDomain: tls.example.com
+  CloudName: overcloud.tls.example.com
+  CloudNameCtlplane: overcloud.ctlplane.tls.example.com
+  CloudNameInternal: overcloud.internalapi.tls.example.com
+  CloudNameStorage: overcloud.storage.tls.example.com
+  CloudNameStorageManagement: overcloud.storagemgmt.tls.example.com
+

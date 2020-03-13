@@ -1,0 +1,10 @@
+parameter_defaults:
+
+    NeutronBridgeMappings: datacentre:br-ex,tenant:br-isolated
+    NeutronExternalNetworkBridge: ''
+    NeutronNetworkType: geneve
+    NeutronNetworkVLANRanges: tenant:1000:2000
+    NeutronTunnelTypes: geneve
+
+    # NetworkDeploymentActions: ['CREATE','UPDATE']
+

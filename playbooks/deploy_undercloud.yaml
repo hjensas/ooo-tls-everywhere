@@ -1,0 +1,167 @@
+- hosts: undercloud
+  tasks:
+  - name: Set hostname
+    become: yes
+    shell: |
+      hostnamectl set-hostname undercloud.tls.example.com
+      hostnamectl set-hostname --transient undercloud.tls.example.com
+  - name: Set up some swap space
+    become: yes
+    shell: |
+      dd if=/dev/zero of=/opt/8GB.swap bs=8192 count=1048576
+      mkswap /opt/8GB.swap
+      swapon /opt/8GB.swap
+      echo "/opt/8GB.swap swap                                    swap    defaults 0 0" >> /etc/fstab
+  - name: Set up public interface
+    become: yes
+    copy:
+      content: | 
+        NAME=eth2
+        DEVICE=eth2
+        BOOTPROTO=static
+        IPADDR={{ undercloud_public_ip }}
+        PREFIX=24
+        MTU=1450
+      dest: /etc/sysconfig/network-scripts/ifcfg-eth2
+  - name: Bring up public interface
+    become: yes
+    command: ifup eth2
+  - name: Set up ctlplane interface
+    become: yes
+    copy:
+      content: |
+        NAME=eth1
+        DEVICE=eth1
+        BOOTPROTO=static
+        IPADDR={{ undercloud_ip }}
+        PREFIX=24
+        MTU=1450
+      dest: /etc/sysconfig/network-scripts/ifcfg-eth2
+  - name: Bring up ctlplane interface
+    become: yes
+    command: ifup eth1
+  - name: Install packages
+    become: yes
+    yum:
+      name: "{{ packages }}"
+    vars:
+      packages:
+        - git
+        - tmux
+        - vim-enhanced
+  - name: Git checkout tripleo-repos
+    git:
+      repo: https://opendev.org/openstack/tripleo-repos.git
+      dest: "{{ ansible_env.HOME }}/tripleo-repos"
+  - name: Install tripleo repos rpm
+    become: yes
+    shell: |
+      cd {{ ansible_env.HOME }}/tripleo-repos
+      python setup.py install
+  - name: Set up tripleo repos
+    become: yes
+    shell: |
+      tripleo-repos -b train current ceph
+    #  tripleo-repos current-tripleo-dev ceph
+  - name: upgrade all packages
+    become: yes
+    yum:
+      name: '*'
+      state: latest
+  - name: Install tripleo client and ceph-ansible
+    become: yes
+    yum:
+      name: "{{ packages }}"
+    vars:
+      packages:
+        - python-tripleoclient
+        - ceph-ansible
+        - python2-novajoin
+  - name: Git checkout ooo-tls-everywhere
+    git:
+      repo: https://github.com/hjensas/ooo-tls-everywhere.git
+      dest: "{{ ansible_env.HOME }}/ooo-tls-everywhere"
+  - name: Git checkout tripleo-heat-templates
+    git:
+      repo: https://opendev.org/openstack/tripleo-heat-templates.git
+      dest: "{{ ansible_env.HOME }}/tripleo-heat-templates"
+      # refspec: refs/changes/49/619649/10
+      version: stable/train
+  - name: Create symlinks
+    file:
+      src: "{{ ansible_env.HOME }}/ooo-tls-everywhere/{{ item }}"
+      dest: "{{ ansible_env.HOME }}/{{ item }}"
+      state: link
+    with_items:
+      - overcloud
+      - undercloud.conf
+      - set_capabilities.sh
+  - name: Create images directory
+    file:
+      dest: "{{ ansible_env.HOME }}/images"
+      state: directory
+  - name: Build Images - async task
+    shell: |
+      cd {{ ansible_env.HOME }}/images
+      export DIB_YUM_REPO_CONF="/etc/yum.repos.d/delorean*"
+      openstack overcloud image build
+  - name: Use FreeIPA for nameservices
+    become: yes
+    shell: |
+      cat << EOF > /etc/resolv.conf
+      search tls.example.com
+      nameserver {{ freeipa_ip }}
+      EOF
+  - name: IPA Join
+    become: yes
+    shell: |
+      /usr/libexec/novajoin-ipa-setup \
+        --principal admin \
+        --password {{ ipa_password }} \
+        --server freeipa.tls.example.com \
+        --realm TLS.EXAMPLE.COM \
+        --domain tls.example.com \
+        --hostname undercloud.tls.example.com \
+        --precreate
+    register:
+      ipa_otp
+  - name: Set undercloud.conf otp
+    replace:
+      path: "{{ ansible_env.HOME }}/undercloud.conf"
+      regexp: <otp>
+      replace: "{{ ipa_otp.stdout }}"
+  - name: Set undercloud.conf nameserver
+    replace:
+      path: "{{ ansible_env.HOME }}/undercloud.conf"
+      regexp: <ipa_nameserver>
+      replace: '{{ freeipa_ip }}'
+  - name: Set external network gateway
+    replace:
+      path: "{{ ansible_env.HOME }}/overcloud/templates/network_data.yaml"
+      regexp: <external_gateway>
+      replace: '{{ undercloud_public_ip }}' 
+  - name: Install Undercloud
+    shell:
+      openstack undercloud install
+  - name: Upload overcloud images
+    shell: |
+      source {{ ansible_env.HOME }}/stackrc
+      cd {{ ansible_env.HOME }}/images
+      openstack overcloud image upload
+  - name: Import nodes
+    shell: |
+      source {{ ansible_env.HOME }}/stackrc
+      openstack overcloud node import instackenv.json
+  - name: Introspect and provide nodes
+    shell: |
+      source {{ ansible_env.HOME }}/stackrc
+      openstack overcloud node introspect --all-manageable --provide
+  - name: Create flavors and set node capabilities
+    shell: |
+      source {{ ansible_env.HOME }}/stackrc
+      bash {{ ansible_env.HOME }}/set_capabilities.sh
+  - name: Additional masquerading for external
+    shell: |
+      sudo iptables -t nat -I POSTROUTING 1 -s 10.0.0.0/24 -j MASQUERADE
+      sudo iptables -t nat -I POSTROUTING 1 -s 10.0.0.0/24 -d 10.0.0.0/24 -j RETURN
+
