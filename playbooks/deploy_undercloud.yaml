@@ -61,8 +61,8 @@
   - name: Set up tripleo repos
     become: yes
     shell: |
-      tripleo-repos -b train current ceph
-    #  tripleo-repos current-tripleo-dev ceph
+      tripleo-repos current-tripleo-dev ceph
+    #  tripleo-repos -b train current ceph
   - name: upgrade all packages
     become: yes
     yum:
@@ -86,7 +86,7 @@
       repo: https://opendev.org/openstack/tripleo-heat-templates.git
       dest: "{{ ansible_env.HOME }}/tripleo-heat-templates"
       # refspec: refs/changes/49/619649/10
-      version: stable/train
+      # version: stable/train
   - name: Create symlinks
     file:
       src: "{{ ansible_env.HOME }}/ooo-tls-everywhere/{{ item }}"
