@@ -29,7 +29,7 @@ The OVB environment files expect:
 
 ::
 
-  cd ~/ovb-lab-freeipa/openstack-virtual-baremetal/
-  bash ~/ovb-lab-freeipa/openstack-virtual-baremetal/deploy_ovb.sh
+  cd ~/ovb-lab-freeipa/ooo-tls-everywhere/
+  bash ovb/deploy_ovb.sh
 
 
