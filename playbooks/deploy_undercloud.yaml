@@ -18,6 +18,7 @@
       content: | 
         NAME=eth2
         DEVICE=eth2
+        ONBOOT=true
         BOOTPROTO=static
         IPADDR={{ undercloud_public_ip }}
         PREFIX=24
