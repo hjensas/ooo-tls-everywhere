@@ -37,7 +37,7 @@
         IPADDR={{ undercloud_ip }}
         PREFIX=24
         MTU=1450
-      dest: /etc/sysconfig/network-scripts/ifcfg-eth2
+      dest: /etc/sysconfig/network-scripts/ifcfg-eth1
   - name: Bring up ctlplane interface
     become: yes
     command: ifup eth1
